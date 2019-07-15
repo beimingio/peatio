@@ -22,9 +22,11 @@ def key(market, period = 1)
   "peatio:#{market}:k:#{period}"
 end
 
+# redis中已存的最后一个元素的时间戳
 def last_ts(market, period = 1)
+  # 以 -1 表示列表的最后一个元素
   latest = @r.lindex key(market, period), -1
-  latest && Time.at(JSON.parse(latest)[0])
+  latest && Time.at(JSON.parse(latest)[0]) # 0是时间戳
 end
 
 def next_ts(market, period = 1)
@@ -39,6 +41,7 @@ def next_ts(market, period = 1)
 end
 
 def _k1_set(market, start, period)
+  # 以 0 表示列表的第一个元素
   ts = JSON.parse(@r.lindex(key(market, 1), 0)).first
 
   left = offset = (start.to_i - ts) / 60
@@ -70,6 +73,7 @@ def get_point(market, period, ts)
 
   if point.nil?
     point = JSON.parse @r.lindex(key(market, period), -1)
+    # 用最新价作为最新数据初始
     point = [ts.to_i, point[4], point[4], point[4], point[4], 0]
   end
 
@@ -84,7 +88,7 @@ def append_point(market, period, ts)
   @r.rpush k, point.to_json
 
   if period == 1
-    # 24*60 = 1440
+    # 24*60 = 1440 今日开盘价
     if point = @r.lindex(key(market, period), -1441)
       Rails.cache.write "peatio:#{market}:ticker:open", JSON.parse(point)[4]
     end
@@ -114,6 +118,7 @@ def fill(market, period = 1)
     ts = next_ts(market, period)
   end
 
+  # 每隔15s计算一次最新数据
   update_point(market, period, last_ts(market, period))
 end
 
